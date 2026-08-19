@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 export default function HomePage() {
   const baseUrl = (process.env.APP_BASE_URL ?? "").replace(/\/+$/, "");
-  const mcpUrl = baseUrl ? `${baseUrl}/ga4mcp` : "/ga4mcp";
+  const mcpUrl = baseUrl ? `${baseUrl}/mcp` : "/mcp";
   const googleCallback = baseUrl
     ? `${baseUrl}/oauth/google/callback`
     : "/oauth/google/callback";
@@ -37,7 +37,7 @@ export default function HomePage() {
         Claude authenticates with MCP OAuth. Google sign-in happens during that
         flow and binds the session to the Google account subject. Operators are
         isolated. The Cloud Run service must allow unauthenticated ingress so
-        Anthropic can reach <code>/ga4mcp</code>.
+        Anthropic can reach <code>/mcp</code>.
       </p>
     </main>
   );

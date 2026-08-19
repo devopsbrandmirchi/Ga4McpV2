@@ -10,7 +10,7 @@ describe("MCP token extraction", () => {
 
   it("reads a Bearer token and rejects missing/static tokens", async () => {
     const access = issueAccessToken({ clientId: "claude", sub: "sub-a" });
-    const req = new Request("http://localhost:3000/ga4mcp", {
+    const req = new Request("http://localhost:3000/mcp", {
       headers: { Authorization: `Bearer ${access}` },
     });
     expect(extractMcpToken(req)).toBe(access);

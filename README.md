@@ -7,7 +7,7 @@ This is Version 2. It is a separate application from V1. Do not reuse V1 secrets
 ```text
 Operator A or Operator B
   → same Claude Custom Connector URL
-  → https://<v2-host>/ga4mcp
+  → https://<v2-host>/mcp
   → MCP OAuth (Claude → V2)
   → Google OAuth (operator's own Google account)
   → operator credentials + active GA4 property in Firestore
@@ -70,7 +70,7 @@ npm run build
 ```
 
 - App: `http://localhost:3000`
-- MCP: `http://localhost:3000/ga4mcp`
+- MCP: `http://localhost:3000/mcp`
 - Health: `http://localhost:3000/health`
 - Google callback: `http://localhost:3000/oauth/google/callback`
 
@@ -152,7 +152,7 @@ http://localhost:3000/oauth/google/callback
 
 1. Deploy V2 and set `APP_BASE_URL` to the Cloud Run URL.
 2. In Claude, add a Custom Connector.
-3. URL: `https://<v2-host>/ga4mcp`
+3. URL: `https://<v2-host>/mcp`
 4. Each operator completes Google sign-in from their own Claude account.
 5. If the Google account has multiple GA4 properties, they pick one. That choice persists until they switch.
 
@@ -196,7 +196,7 @@ After deploy:
 
 1. Add the Cloud Run callback URI to the V2 OAuth client.
 2. Confirm Firestore is created in Native mode.
-3. Add `https://<v2-host>/ga4mcp` in Claude.
+3. Add `https://<v2-host>/mcp` in Claude.
 
 ## Security considerations
 

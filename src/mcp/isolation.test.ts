@@ -120,7 +120,7 @@ describe("multi-operator isolation", () => {
   it("requires a valid operator-bound MCP token for tools/call", async () => {
     const handler = createGa4McpHandler();
     const unauthorized = await handler(
-      new Request("http://localhost:3000/ga4mcp", {
+      new Request("http://localhost:3000/mcp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -136,7 +136,7 @@ describe("multi-operator isolation", () => {
     const tokenA = issueAccessToken({ clientId: "claude", sub: "sub-a" });
     const tokenB = issueAccessToken({ clientId: "claude", sub: "missing-operator" });
     const unknown = await handler(
-      new Request("http://localhost:3000/ga4mcp", {
+      new Request("http://localhost:3000/mcp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -153,7 +153,7 @@ describe("multi-operator isolation", () => {
     expect(unknown.status).toBe(401);
 
     const authorized = await handler(
-      new Request("http://localhost:3000/ga4mcp", {
+      new Request("http://localhost:3000/mcp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

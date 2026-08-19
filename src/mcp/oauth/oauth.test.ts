@@ -4,7 +4,7 @@ import { GET as getAuthorize } from "@/app/oauth/mcp/authorize/route";
 import { POST as postRegister } from "@/app/oauth/mcp/register/route";
 import { POST as postToken } from "@/app/oauth/mcp/token/route";
 import { GET as getAsMetadata } from "@/app/.well-known/oauth-authorization-server/route";
-import { GET as getPrm } from "@/app/.well-known/oauth-protected-resource/ga4mcp/route";
+import { GET as getPrm } from "@/app/.well-known/oauth-protected-resource/mcp/route";
 import {
   CLAUDE_AI_CALLBACK,
   isRedirectAllowed,
@@ -51,9 +51,9 @@ describe("MCP OAuth metadata", () => {
     setRequiredEnv();
   });
 
-  it("advertises the exact /ga4mcp resource and CIMD-capable authorization server", async () => {
+  it("advertises the exact /mcp resource and CIMD-capable authorization server", async () => {
     const prm = protectedResourceMetadata();
-    expect(prm.resource).toBe("http://localhost:3000/ga4mcp");
+    expect(prm.resource).toBe("http://localhost:3000/mcp");
     expect(prm.authorization_servers).toEqual(["http://localhost:3000"]);
 
     const as = authorizationServerMetadata();

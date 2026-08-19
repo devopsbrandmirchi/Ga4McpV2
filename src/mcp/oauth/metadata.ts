@@ -3,7 +3,7 @@ import { getConfig } from "@/lib/config";
 export const MCP_SCOPE = "ga4:read";
 
 export function mcpResourceUrl(): string {
-  return `${getConfig().appBaseUrl}/ga4mcp`;
+  return `${getConfig().appBaseUrl}/mcp`;
 }
 
 export function protectedResourceMetadata() {
@@ -37,7 +37,7 @@ export function authorizationServerMetadata() {
 }
 
 export function wwwAuthenticateHeader(): string {
-  const metadataUrl = `${getConfig().appBaseUrl}/.well-known/oauth-protected-resource/ga4mcp`;
+  const metadataUrl = `${getConfig().appBaseUrl}/.well-known/oauth-protected-resource/mcp`;
   return `Bearer error="invalid_token", error_description="Authentication required", resource_metadata="${metadataUrl}", scope="${MCP_SCOPE}"`;
 }
 

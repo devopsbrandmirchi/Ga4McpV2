@@ -3,7 +3,7 @@ import { parseSseJsonPayload, withStreamableAccept } from "@/mcp/http";
 
 describe("streamable HTTP helpers", () => {
   it("injects Accept when the client omitted SSE", () => {
-    const req = withStreamableAccept(new Request("http://localhost:3000/ga4mcp"));
+    const req = withStreamableAccept(new Request("http://localhost:3000/mcp"));
     expect(req.headers.get("accept")).toContain("text/event-stream");
     expect(req.headers.get("accept")).toContain("application/json");
   });

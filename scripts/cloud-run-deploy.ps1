@@ -25,7 +25,7 @@ $serviceUrl = gcloud run services describe $Service `
 
 Write-Host ""
 Write-Host "Cloud Run URL: $serviceUrl"
-Write-Host "MCP endpoint:  $serviceUrl/ga4mcp"
+Write-Host "MCP endpoint:  $serviceUrl/mcp"
 Write-Host "Health:        $serviceUrl/health"
 Write-Host "Google callback: $serviceUrl/oauth/google/callback"
 Write-Host ""
