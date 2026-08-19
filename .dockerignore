@@ -1,0 +1,17 @@
+.git
+.github
+.next
+.vercel
+node_modules
+coverage
+*.md
+.env
+.env.*
+!.env.example
+Dockerfile
+.dockerignore
+cloudbuild.yaml
+scripts
+npm-debug.log
+.DS_Store
+Thumbs.db

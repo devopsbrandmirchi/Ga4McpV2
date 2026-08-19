@@ -1,0 +1,13 @@
+.git
+.github
+.next
+.vercel
+node_modules
+coverage
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+*.md
+!README.md
