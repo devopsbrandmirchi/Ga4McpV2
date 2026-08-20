@@ -41,4 +41,21 @@ describe("mapGoogleError", () => {
     });
     expect(error.code).toBe("quota");
   });
+
+  it("does not copy Google gRPC codes into HTTP Response status", () => {
+    const permissionDenied = mapGoogleError({
+      code: 7,
+      message: "The caller does not have permission",
+    });
+    expect(permissionDenied.code).toBe("google_api");
+    expect(permissionDenied.status).toBeGreaterThanOrEqual(200);
+    expect(permissionDenied.status).toBeLessThanOrEqual(599);
+    expect(permissionDenied.status).not.toBe(7);
+
+    const internal = mapGoogleError({
+      code: 13,
+      message: "Internal error from Analytics Admin API",
+    });
+    expect(internal.status).toBe(500);
+  });
 });

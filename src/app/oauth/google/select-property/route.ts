@@ -1,6 +1,6 @@
 import { getAuthorizedClientForOperator } from "@/google/auth";
 import { listGa4PropertiesWithAuth } from "@/google/admin";
-import { AppError } from "@/lib/errors";
+import { AppError, toHttpStatus } from "@/lib/errors";
 import { escapeHtml, htmlResponse, pageHtml } from "@/lib/html";
 import { logger } from "@/lib/logger";
 import {
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
         "Property selection failed",
         `<h1>Property selection failed</h1><p class="error">${escapeHtml(message)}</p><p>Return to Claude and connect the connector again.</p>`,
       ),
-      error instanceof AppError ? error.status : 400,
+      error instanceof AppError ? toHttpStatus(error.status, 500) : 400,
       headers,
     );
   }

@@ -66,8 +66,10 @@ export function htmlResponse(html: string, status = 200, headers?: HeadersInit):
       }
     });
   }
+  const safeStatus =
+    Number.isInteger(status) && status >= 200 && status <= 599 ? status : 500;
   return new Response(html, {
-    status,
+    status: safeStatus,
     headers: next,
   });
 }

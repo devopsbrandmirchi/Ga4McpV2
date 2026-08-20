@@ -5,7 +5,7 @@ import {
   verifyOAuthState,
 } from "@/google/auth";
 import { listGa4PropertiesWithAuth, type Ga4PropertySummary } from "@/google/admin";
-import { AppError } from "@/lib/errors";
+import { AppError, toHttpStatus } from "@/lib/errors";
 import { escapeHtml, htmlResponse, pageHtml } from "@/lib/html";
 import { logger } from "@/lib/logger";
 import {
@@ -170,7 +170,7 @@ export async function GET(req: Request) {
         "Google authorization failed",
         `<h1>Google authorization failed</h1><p class="error">${escapeHtml(message)}</p>`,
       ),
-      error instanceof AppError ? error.status : 400,
+      error instanceof AppError ? toHttpStatus(error.status, 500) : 400,
       headers,
     );
   }

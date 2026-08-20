@@ -21,8 +21,15 @@ export class AppError extends Error {
     super(message);
     this.name = "AppError";
     this.code = code;
-    this.status = status;
+    this.status = toHttpStatus(status);
   }
+}
+
+export function toHttpStatus(status: number, fallback = 500): number {
+  if (Number.isInteger(status) && status >= 200 && status <= 599) {
+    return status;
+  }
+  return fallback;
 }
 
 interface GoogleLikeError {
@@ -135,7 +142,7 @@ export function mapGoogleError(error: unknown): AppError {
   return new AppError(
     message || "The Google Analytics API request failed.",
     "google_api",
-    Number.isFinite(numericCode) ? numericCode : 500,
+    toHttpStatus(numericCode),
   );
 }
 
