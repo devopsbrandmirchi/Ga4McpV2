@@ -16,6 +16,7 @@ import {
 } from "@/lib/oauth-cookies";
 import { mcpAuthorizeRedirectUrl } from "@/mcp/oauth/complete";
 import { assertPendingMcpAuthorize } from "@/mcp/oauth/pending";
+import { createMcpSessionId } from "@/mcp/oauth/tokens";
 import { getOperatorStore } from "@/store/operators";
 
 export const runtime = "nodejs";
@@ -97,11 +98,13 @@ export async function GET(req: Request) {
       codeVerifier: cookies.verifier,
     });
     const operator = await persistGoogleIdentity(identity);
+    const sessionId = createMcpSessionId();
     const auth = await getAuthorizedClientForOperator(identity.googleSub);
     const properties = await listGa4PropertiesWithAuth(auth);
 
     logger.info("Google OAuth completed", {
       operatorId: operator.operatorId,
+      sessionId,
       propertyCount: properties.length,
     });
 
@@ -125,10 +128,21 @@ export async function GET(req: Request) {
     if (properties.length === 1) {
       const only = properties[0];
       if (only) {
-        await getOperatorStore().setActiveProperty(identity.googleSub, {
+        await getOperatorStore().setSessionProperty(identity.googleSub, sessionId, {
           propertyId: only.propertyId,
           propertyName: only.propertyName,
           account: only.account,
+        });
+      }
+    } else if (stillAccessible && operator.activePropertyId) {
+      const current = properties.find(
+        (property) => property.propertyId === operator.activePropertyId,
+      );
+      if (current) {
+        await getOperatorStore().setSessionProperty(identity.googleSub, sessionId, {
+          propertyId: current.propertyId,
+          propertyName: current.propertyName,
+          account: current.account,
         });
       }
     } else if (!stillAccessible) {
@@ -136,7 +150,10 @@ export async function GET(req: Request) {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store",
       });
-      headers.append("Set-Cookie", operatorCookieHeader({ googleSub: identity.googleSub, secure }));
+      headers.append(
+        "Set-Cookie",
+        operatorCookieHeader({ googleSub: identity.googleSub, sessionId, secure }),
+      );
       return htmlResponse(
         propertyPickerHtml({
           properties,
@@ -151,7 +168,7 @@ export async function GET(req: Request) {
     }
 
     const headers = new Headers({
-      Location: mcpAuthorizeRedirectUrl(pending, identity.googleSub),
+      Location: mcpAuthorizeRedirectUrl(pending, identity.googleSub, sessionId),
     });
     appendCookies(headers, clearOAuthCookieHeaders(secure));
     return new Response(null, { status: 302, headers });

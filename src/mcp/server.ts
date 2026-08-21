@@ -6,6 +6,7 @@ import {
   mcpOptionsResponse,
   mcpProbeGetResponse,
   toJsonRpcResponse,
+  withCors,
   withStreamableAccept,
 } from "@/mcp/http";
 import { wwwAuthenticateHeader } from "@/mcp/oauth/metadata";
@@ -17,42 +18,24 @@ import { registerRealtimeTool } from "@/mcp/tools/realtime";
 import { registerRunReportTool } from "@/mcp/tools/run-report";
 import { registerSetActivePropertyTool } from "@/mcp/tools/set-active-property";
 import { getOperatorStore } from "@/store/operators";
+import { normalizeSessionId } from "@/store/types";
 
-export function callsProtectedTool(
-  body: unknown,
-  mcpMethodHeader?: string | null,
-): boolean {
-  if (mcpMethodHeader === "tools/call") {
-    return true;
-  }
-
-  const messages = Array.isArray(body) ? body : [body];
-  for (const message of messages) {
-    if (
-      message &&
-      typeof message === "object" &&
-      (message as { method?: unknown }).method === "tools/call"
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-export function unauthorizedToolCallResponse(): Response {
-  return new Response(
-    JSON.stringify({
-      error: "invalid_token",
-      error_description: "Authentication required",
-    }),
-    {
-      status: 401,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-        "WWW-Authenticate": wwwAuthenticateHeader(),
+export function unauthorizedMcpResponse(): Response {
+  return withCors(
+    new Response(
+      JSON.stringify({
+        error: "invalid_token",
+        error_description: "Authentication required",
+      }),
+      {
+        status: 401,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+          "WWW-Authenticate": wwwAuthenticateHeader(),
+        },
       },
-    },
+    ),
   );
 }
 
@@ -110,6 +93,32 @@ export function createGa4McpHandler() {
     if (req.method === "OPTIONS") {
       return mcpOptionsResponse();
     }
+
+    let body: unknown;
+    if (req.method === "POST") {
+      try {
+        body = await req.clone().json();
+      } catch {
+        body = undefined;
+      }
+    }
+    const mcpOperation = toolNameFromBody(body) ?? req.method.toLowerCase();
+
+    const token = extractMcpToken(req);
+    const payload = tryReadAccessToken(token);
+    if (!payload?.sub) {
+      logger.warn("Unauthorized MCP request", { requestId, mcpOperation, success: false });
+      return unauthorizedMcpResponse();
+    }
+
+    const operator = await getOperatorStore().getByGoogleSub(payload.sub);
+    if (!operator) {
+      logger.warn("Unknown operator for MCP token", { requestId, mcpOperation, success: false });
+      return unauthorizedMcpResponse();
+    }
+
+    void getOperatorStore().touchLastAccess(operator.googleSub);
+
     if (req.method === "GET") {
       return mcpProbeGetResponse();
     }
@@ -117,65 +126,36 @@ export function createGa4McpHandler() {
       return new Response(null, { status: 204 });
     }
 
-    if (req.method === "POST") {
-      const token = extractMcpToken(req);
-      const payload = tryReadAccessToken(token);
-      let body: unknown;
-      try {
-        body = await req.clone().json();
-      } catch {
-        body = undefined;
-      }
-
-      const mcpOperation = toolNameFromBody(body) ?? "mcp";
-
-      if (callsProtectedTool(body, req.headers.get("mcp-method"))) {
-        if (!payload?.sub) {
-          logger.warn("Unauthorized MCP tool call", { requestId, mcpOperation, success: false });
-          return unauthorizedToolCallResponse();
-        }
-
-        const operator = await getOperatorStore().getByGoogleSub(payload.sub);
-        if (!operator) {
-          logger.warn("Unknown operator for MCP token", { requestId, mcpOperation, success: false });
-          return unauthorizedToolCallResponse();
-        }
-
-        void getOperatorStore().touchLastAccess(operator.googleSub);
-
-        return runWithOperator(
-          {
+    return runWithOperator(
+      {
+        requestId,
+        operatorId: operator.operatorId,
+        googleSub: operator.googleSub,
+        sessionId: normalizeSessionId(payload.sid),
+      },
+      async () => {
+        try {
+          const response = await toJsonRpcResponse(await handler(withStreamableAccept(req)));
+          logger.info("MCP request", {
             requestId,
             operatorId: operator.operatorId,
-            googleSub: operator.googleSub,
-          },
-          async () => {
-            try {
-              const response = await toJsonRpcResponse(await handler(withStreamableAccept(req)));
-              logger.info("MCP tool call", {
-                requestId,
-                operatorId: operator.operatorId,
-                mcpOperation,
-                success: response.ok,
-                durationMs: Date.now() - started,
-              });
-              return response;
-            } catch (error) {
-              logger.error("MCP tool call failed", {
-                requestId,
-                operatorId: operator.operatorId,
-                mcpOperation,
-                success: false,
-                errorCategory: error instanceof Error ? error.name : "unknown",
-                durationMs: Date.now() - started,
-              });
-              throw error;
-            }
-          },
-        );
-      }
-    }
-
-    return toJsonRpcResponse(await handler(withStreamableAccept(req)));
+            mcpOperation,
+            success: response.ok,
+            durationMs: Date.now() - started,
+          });
+          return response;
+        } catch (error) {
+          logger.error("MCP request failed", {
+            requestId,
+            operatorId: operator.operatorId,
+            mcpOperation,
+            success: false,
+            errorCategory: error instanceof Error ? error.name : "unknown",
+            durationMs: Date.now() - started,
+          });
+          throw error;
+        }
+      },
+    );
   };
 }

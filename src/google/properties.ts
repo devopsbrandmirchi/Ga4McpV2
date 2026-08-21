@@ -2,9 +2,10 @@ import { listGa4Properties, type Ga4PropertySummary } from "@/google/admin";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { normalizePropertyId } from "@/lib/property-id";
-import { getOperatorContext } from "@/lib/request-context";
+import { getOperatorContext, getSessionId } from "@/lib/request-context";
 import { getOperatorStore } from "@/store/operators";
-import type { OperatorRecord } from "@/store/types";
+import { LEGACY_SESSION_ID } from "@/store/types";
+import type { OperatorRecord, SessionPropertyRecord } from "@/store/types";
 
 function findProperty(
   properties: Ga4PropertySummary[],
@@ -27,26 +28,57 @@ export async function loadCurrentOperator(): Promise<OperatorRecord> {
   return operator;
 }
 
+export async function loadActiveProperty(): Promise<SessionPropertyRecord> {
+  const { googleSub } = getOperatorContext();
+  const sessionId = getSessionId();
+  const session = await getOperatorStore().getSessionProperty(googleSub, sessionId);
+  if (session?.activePropertyId) {
+    return session;
+  }
+
+  const operator = await loadCurrentOperator();
+  if (sessionId !== LEGACY_SESSION_ID && operator.activePropertyId) {
+    return {
+      sessionId,
+      activePropertyId: operator.activePropertyId,
+      activePropertyName: operator.activePropertyName,
+      activePropertyAccount: operator.activePropertyAccount,
+      updatedAt: operator.updatedAt,
+    };
+  }
+
+  return (
+    session ?? {
+      sessionId,
+      activePropertyId: operator.activePropertyId,
+      activePropertyName: operator.activePropertyName,
+      activePropertyAccount: operator.activePropertyAccount,
+      updatedAt: operator.updatedAt,
+    }
+  );
+}
+
 export async function listAccessibleProperties(): Promise<
   Array<Ga4PropertySummary & { isActive: boolean }>
 > {
-  const operator = await loadCurrentOperator();
+  const active = await loadActiveProperty();
   const properties = await listGa4Properties();
   return properties.map((property) => ({
     ...property,
-    isActive: operator.activePropertyId === property.propertyId,
+    isActive: active.activePropertyId === property.propertyId,
   }));
 }
 
-export async function persistActiveProperty(property: Ga4PropertySummary): Promise<OperatorRecord> {
+export async function persistActiveProperty(property: Ga4PropertySummary): Promise<SessionPropertyRecord> {
   const { googleSub, operatorId } = getOperatorContext();
-  const updated = await getOperatorStore().setActiveProperty(googleSub, {
+  const updated = await getOperatorStore().setSessionProperty(googleSub, getSessionId(), {
     propertyId: property.propertyId,
     propertyName: property.propertyName,
     account: property.account,
   });
   logger.info("Active GA4 property updated", {
     operatorId,
+    sessionId: updated.sessionId,
     propertyId: property.propertyId,
   });
   return updated;
@@ -54,14 +86,15 @@ export async function persistActiveProperty(property: Ga4PropertySummary): Promi
 
 export async function clearUnavailableActiveProperty(): Promise<void> {
   const { googleSub, operatorId } = getOperatorContext();
-  await getOperatorStore().clearActiveProperty(googleSub);
-  logger.warn("Cleared unavailable active GA4 property", { operatorId });
+  const sessionId = getSessionId();
+  await getOperatorStore().clearSessionProperty(googleSub, sessionId);
+  logger.warn("Cleared unavailable active GA4 property", { operatorId, sessionId });
 }
 
 export async function resolveAuthorizedProperty(
   requestedPropertyId?: string,
 ): Promise<Ga4PropertySummary> {
-  const operator = await loadCurrentOperator();
+  const active = await loadActiveProperty();
   const properties = await listGa4Properties();
 
   if (requestedPropertyId) {
@@ -73,13 +106,13 @@ export async function resolveAuthorizedProperty(
         403,
       );
     }
-    if (operator.activePropertyId !== selected.propertyId) {
+    if (active.activePropertyId !== selected.propertyId) {
       await persistActiveProperty(selected);
     }
     return selected;
   }
 
-  if (!operator.activePropertyId) {
+  if (!active.activePropertyId) {
     throw new AppError(
       "No active GA4 property is selected. Call ga4_list_properties, then ga4_set_active_property.",
       "no_active_property",
@@ -87,8 +120,8 @@ export async function resolveAuthorizedProperty(
     );
   }
 
-  const active = findProperty(properties, operator.activePropertyId);
-  if (!active) {
+  const current = findProperty(properties, active.activePropertyId);
+  if (!current) {
     await clearUnavailableActiveProperty();
     throw new AppError(
       "The previously selected GA4 property is no longer accessible. Call ga4_list_properties and select another property.",
@@ -97,7 +130,7 @@ export async function resolveAuthorizedProperty(
     );
   }
 
-  return active;
+  return current;
 }
 
 export async function setAuthorizedActiveProperty(

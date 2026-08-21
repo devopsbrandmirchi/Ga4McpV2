@@ -1,11 +1,13 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { AppError } from "@/lib/errors";
+import { normalizeSessionId } from "@/store/types";
 
 export interface OperatorContext {
   requestId: string;
   operatorId: string;
   googleSub: string;
+  sessionId?: string;
 }
 
 const storage = new AsyncLocalStorage<OperatorContext>();
@@ -40,4 +42,8 @@ export function getOperatorContext(): OperatorContext {
 
 export function peekOperatorContext(): OperatorContext | undefined {
   return storage.getStore();
+}
+
+export function getSessionId(context = getOperatorContext()): string {
+  return normalizeSessionId(context.sessionId);
 }

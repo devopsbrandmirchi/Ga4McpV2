@@ -28,7 +28,11 @@ export async function POST(req: Request) {
 
   try {
     const pending = assertPendingMcpAuthorize(cookies.pending);
-    if (!cookies.operator?.googleSub || cookies.operator.exp < Date.now()) {
+    if (
+      !cookies.operator?.googleSub ||
+      !cookies.operator.sessionId ||
+      cookies.operator.exp < Date.now()
+    ) {
       throw new AppError(
         "The Google authorization session expired. Start the Claude connector again.",
         "session_invalid",
@@ -50,18 +54,27 @@ export async function POST(req: Request) {
       );
     }
 
-    await getOperatorStore().setActiveProperty(cookies.operator.googleSub, {
-      propertyId: selected.propertyId,
-      propertyName: selected.propertyName,
-      account: selected.account,
-    });
+    await getOperatorStore().setSessionProperty(
+      cookies.operator.googleSub,
+      cookies.operator.sessionId,
+      {
+        propertyId: selected.propertyId,
+        propertyName: selected.propertyName,
+        account: selected.account,
+      },
+    );
 
     logger.info("Operator selected initial GA4 property", {
+      sessionId: cookies.operator.sessionId,
       propertyId: selected.propertyId,
     });
 
     const headers = new Headers({
-      Location: mcpAuthorizeRedirectUrl(pending, cookies.operator.googleSub),
+      Location: mcpAuthorizeRedirectUrl(
+        pending,
+        cookies.operator.googleSub,
+        cookies.operator.sessionId,
+      ),
     });
     appendCookies(headers, clearOAuthCookieHeaders(secure));
     return new Response(null, { status: 302, headers });

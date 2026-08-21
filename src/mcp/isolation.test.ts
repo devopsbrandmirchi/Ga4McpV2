@@ -117,7 +117,24 @@ describe("multi-operator isolation", () => {
     });
   });
 
-  it("requires a valid operator-bound MCP token for tools/call", async () => {
+  it("isolates active properties for two Claude sessions on the same Google account", async () => {
+    const { resolveAuthorizedProperty } = await import("@/google/properties");
+    await runWithOperator(
+      { requestId: "r1", operatorId: "op-a", googleSub: "sub-a", sessionId: "sid-a" },
+      async () => {
+        await resolveAuthorizedProperty("1002");
+      },
+    );
+    await runWithOperator(
+      { requestId: "r2", operatorId: "op-a", googleSub: "sub-a", sessionId: "sid-b" },
+      async () => {
+        const active = await resolveAuthorizedProperty();
+        expect(active.propertyId).toBe("1001");
+      },
+    );
+  });
+
+  it("requires a valid operator-bound MCP token for initialize and tools/call", async () => {
     const handler = createGa4McpHandler();
     const unauthorized = await handler(
       new Request("http://localhost:3000/mcp", {

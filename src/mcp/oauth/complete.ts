@@ -5,12 +5,14 @@ import type { PendingMcpAuthorize } from "@/mcp/oauth/pending";
 export function mcpAuthorizeRedirectUrl(
   pending: PendingMcpAuthorize,
   googleSub: string,
+  sessionId: string,
 ): string {
   const code = issueAuthorizationCode({
     clientId: pending.clientId,
     redirectUri: pending.redirectUri,
     codeChallenge: pending.codeChallenge,
     sub: googleSub,
+    sid: sessionId,
     scope: pending.scope || MCP_SCOPE,
   });
 

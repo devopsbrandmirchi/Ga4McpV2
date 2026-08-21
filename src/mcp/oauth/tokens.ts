@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { getConfig } from "@/lib/config";
 import { MCP_SCOPE, mcpResourceUrl } from "@/mcp/oauth/metadata";
 import { nowSeconds, signJwt, verifyJwt } from "@/mcp/oauth/jwt";
@@ -10,6 +11,7 @@ export interface AuthorizationCodePayload {
   typ: "code";
   iss: string;
   sub: string;
+  sid?: string;
   client_id: string;
   redirect_uri: string;
   code_challenge: string;
@@ -21,6 +23,7 @@ export interface AccessTokenPayload {
   iss: string;
   aud: string;
   sub: string;
+  sid?: string;
   client_id: string;
   scope: string;
   exp: number;
@@ -32,6 +35,7 @@ export interface RefreshTokenPayload {
   iss: string;
   aud: string;
   sub: string;
+  sid?: string;
   client_id: string;
   scope: string;
 }
@@ -43,17 +47,23 @@ function requireSub(sub: string): string {
   return sub;
 }
 
+export function createMcpSessionId(): string {
+  return randomUUID();
+}
+
 export function issueAuthorizationCode(params: {
   clientId: string;
   redirectUri: string;
   codeChallenge: string;
   sub: string;
+  sid?: string;
   scope?: string;
 }): string {
   return signJwt({
     typ: "code",
     iss: getConfig().appBaseUrl,
     sub: requireSub(params.sub),
+    sid: params.sid,
     client_id: params.clientId,
     redirect_uri: params.redirectUri,
     code_challenge: params.codeChallenge,
@@ -74,6 +84,7 @@ export function readAuthorizationCode(code: string): AuthorizationCodePayload {
 export function issueAccessToken(params: {
   clientId: string;
   sub: string;
+  sid?: string;
   scope?: string;
 }): string {
   return signJwt({
@@ -81,6 +92,7 @@ export function issueAccessToken(params: {
     iss: getConfig().appBaseUrl,
     aud: mcpResourceUrl(),
     sub: requireSub(params.sub),
+    sid: params.sid,
     client_id: params.clientId,
     scope: params.scope || MCP_SCOPE,
     iat: nowSeconds(),
@@ -91,6 +103,7 @@ export function issueAccessToken(params: {
 export function issueRefreshToken(params: {
   clientId: string;
   sub: string;
+  sid?: string;
   scope?: string;
 }): string {
   return signJwt({
@@ -98,6 +111,7 @@ export function issueRefreshToken(params: {
     iss: getConfig().appBaseUrl,
     aud: mcpResourceUrl(),
     sub: requireSub(params.sub),
+    sid: params.sid,
     client_id: params.clientId,
     scope: params.scope || MCP_SCOPE,
     iat: nowSeconds(),

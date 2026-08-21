@@ -1,3 +1,5 @@
+export const LEGACY_SESSION_ID = "legacy";
+
 export interface OperatorRecord {
   googleSub: string;
   operatorId: string;
@@ -15,7 +17,7 @@ export interface OperatorRecord {
 export interface UpsertOperatorCredentialsInput {
   googleSub: string;
   email?: string | null;
-  encryptedRefreshToken: string;
+  encryptedRefreshToken?: string;
 }
 
 export interface ActivePropertyInput {
@@ -24,10 +26,33 @@ export interface ActivePropertyInput {
   account: string;
 }
 
+export interface SessionPropertyRecord {
+  sessionId: string;
+  activePropertyId: string | null;
+  activePropertyName: string | null;
+  activePropertyAccount: string | null;
+  updatedAt: string;
+}
+
 export interface OperatorStore {
   getByGoogleSub(googleSub: string): Promise<OperatorRecord | undefined>;
   upsertCredentials(input: UpsertOperatorCredentialsInput): Promise<OperatorRecord>;
   setActiveProperty(googleSub: string, property: ActivePropertyInput): Promise<OperatorRecord>;
   clearActiveProperty(googleSub: string): Promise<OperatorRecord>;
+  getSessionProperty(
+    googleSub: string,
+    sessionId: string,
+  ): Promise<SessionPropertyRecord | undefined>;
+  setSessionProperty(
+    googleSub: string,
+    sessionId: string,
+    property: ActivePropertyInput,
+  ): Promise<SessionPropertyRecord>;
+  clearSessionProperty(googleSub: string, sessionId: string): Promise<SessionPropertyRecord>;
   touchLastAccess(googleSub: string): Promise<void>;
+}
+
+export function normalizeSessionId(sessionId?: string | null): string {
+  const trimmed = sessionId?.trim();
+  return trimmed || LEGACY_SESSION_ID;
 }

@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { loadCurrentOperator } from "@/google/properties";
+import { loadActiveProperty } from "@/google/properties";
 import { AppError, toToolErrorText } from "@/lib/errors";
 import { jsonToolResult } from "@/mcp/tools/schemas";
 
@@ -22,8 +22,8 @@ export function registerGetActivePropertyTool(server: McpServer): void {
     },
     async () => {
       try {
-        const operator = await loadCurrentOperator();
-        if (!operator.activePropertyId) {
+        const active = await loadActiveProperty();
+        if (!active.activePropertyId) {
           throw new AppError(
             "No active GA4 property is selected. Call ga4_list_properties, then ga4_set_active_property.",
             "no_active_property",
@@ -31,9 +31,9 @@ export function registerGetActivePropertyTool(server: McpServer): void {
           );
         }
         return jsonToolResult({
-          propertyId: operator.activePropertyId,
-          propertyName: operator.activePropertyName,
-          account: operator.activePropertyAccount,
+          propertyId: active.activePropertyId,
+          propertyName: active.activePropertyName,
+          account: active.activePropertyAccount,
         });
       } catch (error) {
         return {

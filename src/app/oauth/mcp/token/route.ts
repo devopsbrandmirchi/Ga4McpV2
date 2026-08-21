@@ -21,12 +21,12 @@ function oauthError(error: string, description: string, status = 400): Response 
   return corsJson({ error, error_description: description }, status);
 }
 
-function tokenResponse(clientId: string, sub: string, scope: string): Response {
+function tokenResponse(clientId: string, sub: string, scope: string, sid?: string): Response {
   return corsJson({
-    access_token: issueAccessToken({ clientId, sub, scope }),
+    access_token: issueAccessToken({ clientId, sub, sid, scope }),
     token_type: "Bearer",
     expires_in: accessTokenExpiresIn(),
-    refresh_token: issueRefreshToken({ clientId, sub, scope }),
+    refresh_token: issueRefreshToken({ clientId, sub, sid, scope }),
     scope,
   });
 }
@@ -105,8 +105,8 @@ export async function POST(req: Request) {
       if (!verifyPkce(codeVerifier, payload.code_challenge)) {
         return oauthError("invalid_grant", "PKCE verification failed.");
       }
-      logger.info("Issued MCP access token", { googleSub: payload.sub });
-      return tokenResponse(clientId, payload.sub, payload.scope);
+      logger.info("Issued MCP access token", { googleSub: payload.sub, sessionId: payload.sid });
+      return tokenResponse(clientId, payload.sub, payload.scope, payload.sid);
     }
 
     if (grantType === "refresh_token") {
@@ -115,8 +115,8 @@ export async function POST(req: Request) {
       if (payload.client_id !== clientId) {
         return oauthError("invalid_grant", "The refresh token does not match this client.");
       }
-      logger.info("Refreshed MCP access token", { googleSub: payload.sub });
-      return tokenResponse(clientId, payload.sub, payload.scope);
+      logger.info("Refreshed MCP access token", { googleSub: payload.sub, sessionId: payload.sid });
+      return tokenResponse(clientId, payload.sub, payload.scope, payload.sid);
     }
 
     return oauthError("unsupported_grant_type", "Use authorization_code or refresh_token.");

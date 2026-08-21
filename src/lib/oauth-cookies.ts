@@ -9,6 +9,7 @@ const MAX_AGE_SECONDS = 15 * 60;
 
 export interface PendingOperatorCookie {
   googleSub: string;
+  sessionId: string;
   exp: number;
 }
 
@@ -49,10 +50,12 @@ export function oauthCookieHeaders(params: {
 
 export function operatorCookieHeader(params: {
   googleSub: string;
+  sessionId: string;
   secure: boolean;
 }): string {
   const payload: PendingOperatorCookie = {
     googleSub: params.googleSub,
+    sessionId: params.sessionId,
     exp: Date.now() + MAX_AGE_SECONDS * 1000,
   };
   return `${OPERATOR_COOKIE}=${encodeURIComponent(encryptCookiePayload(payload))}; ${cookieBase(params.secure)}`;

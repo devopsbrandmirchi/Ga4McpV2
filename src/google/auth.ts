@@ -22,7 +22,7 @@ export interface SignedOAuthState {
 export interface GoogleIdentity {
   googleSub: string;
   email: string | null;
-  refreshToken: string;
+  refreshToken: string | null;
 }
 
 export function createOAuthClient(): OAuth2Client {
@@ -93,7 +93,7 @@ export function buildGoogleAuthUrl(params: {
   const client = createOAuthClient();
   return client.generateAuthUrl({
     access_type: "offline",
-    prompt: "consent",
+    prompt: "select_account",
     scope: [...GOOGLE_OPENID_SCOPES],
     include_granted_scopes: false,
     state: params.state,
@@ -112,13 +112,6 @@ export async function exchangeAuthorizationCode(params: {
     codeVerifier: params.codeVerifier,
   });
 
-  if (!tokens.refresh_token) {
-    throw new AppError(
-      "Google did not return a refresh token. Revoke this app in Google Account permissions and authorize again.",
-      "revoked",
-      400,
-    );
-  }
   if (!tokens.id_token) {
     throw new AppError(
       "Google did not return an ID token. OpenID is required to identify the operator.",
@@ -140,16 +133,26 @@ export async function exchangeAuthorizationCode(params: {
   return {
     googleSub,
     email: payload?.email ?? null,
-    refreshToken: tokens.refresh_token,
+    refreshToken: tokens.refresh_token ?? null,
   };
 }
 
 export async function persistGoogleIdentity(identity: GoogleIdentity) {
   const store = getOperatorStore();
+  const existing = await store.getByGoogleSub(identity.googleSub);
+  if (!identity.refreshToken && !existing?.encryptedRefreshToken) {
+    throw new AppError(
+      "Google did not return a refresh token. Revoke this app in Google Account permissions and authorize again.",
+      "revoked",
+      400,
+    );
+  }
   return store.upsertCredentials({
     googleSub: identity.googleSub,
     email: identity.email,
-    encryptedRefreshToken: encryptRefreshToken(identity.refreshToken),
+    encryptedRefreshToken: identity.refreshToken
+      ? encryptRefreshToken(identity.refreshToken)
+      : undefined,
   });
 }
 

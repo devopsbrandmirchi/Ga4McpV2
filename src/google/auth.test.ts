@@ -50,7 +50,7 @@ describe("Google OAuth helpers", () => {
     expect(generateAuthUrl).toHaveBeenCalledWith(
       expect.objectContaining({
         access_type: "offline",
-        prompt: "consent",
+        prompt: "select_account",
         scope: [
           "openid",
           "email",
@@ -62,6 +62,46 @@ describe("Google OAuth helpers", () => {
       }),
     );
     expect(url).toContain("accounts.google.com");
+  });
+
+  it("keeps an existing refresh token when Google omits a new one", async () => {
+    getToken.mockResolvedValue({
+      tokens: { id_token: "id-token" },
+    });
+    verifyIdToken.mockResolvedValue({
+      getPayload: () => ({ sub: "google-sub-a", email: "operator-a@example.com" }),
+    });
+    const store = createMemoryOperatorStore();
+    await store.upsertCredentials({
+      googleSub: "google-sub-a",
+      encryptedRefreshToken: encryptRefreshToken("1//existing"),
+    });
+    setOperatorStore(store);
+    const { exchangeAuthorizationCode, persistGoogleIdentity } = await import("@/google/auth");
+    const { decryptRefreshToken } = await import("@/lib/crypto");
+    const identity = await exchangeAuthorizationCode({
+      code: "auth-code",
+      codeVerifier: "verifier",
+    });
+    expect(identity.refreshToken).toBeNull();
+    await persistGoogleIdentity(identity);
+    const updated = await store.getByGoogleSub("google-sub-a");
+    expect(decryptRefreshToken(updated?.encryptedRefreshToken ?? "")).toBe("1//existing");
+  });
+
+  it("rejects a first-time Google login that returns no refresh token", async () => {
+    getToken.mockResolvedValue({
+      tokens: { id_token: "id-token" },
+    });
+    verifyIdToken.mockResolvedValue({
+      getPayload: () => ({ sub: "google-sub-new", email: "new@example.com" }),
+    });
+    const { exchangeAuthorizationCode, persistGoogleIdentity } = await import("@/google/auth");
+    const identity = await exchangeAuthorizationCode({
+      code: "auth-code",
+      codeVerifier: "verifier",
+    });
+    await expect(persistGoogleIdentity(identity)).rejects.toMatchObject({ code: "revoked" });
   });
 
   it("verifies signed OAuth state and rejects tampering", async () => {

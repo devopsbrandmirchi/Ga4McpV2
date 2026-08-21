@@ -13,7 +13,7 @@ import {
 import { authorizationServerMetadata, protectedResourceMetadata } from "@/mcp/oauth/metadata";
 import { issueAccessToken, readAccessToken } from "@/mcp/oauth/tokens";
 import { isAuthorizedToken } from "@/mcp/auth";
-import { callsProtectedTool, unauthorizedToolCallResponse } from "@/mcp/server";
+import { createGa4McpHandler, unauthorizedMcpResponse } from "@/mcp/server";
 import { encryptRefreshToken } from "@/lib/crypto";
 import { createMemoryOperatorStore } from "@/store/memory";
 import { setOperatorStore } from "@/store/operators";
@@ -132,6 +132,7 @@ describe("authorize + token", () => {
       redirectUri: CLAUDE_AI_CALLBACK,
       codeChallenge: challenge,
       sub: "google-sub-a",
+      sid: "session-one",
     });
 
     const token = await postToken(
@@ -147,6 +148,7 @@ describe("authorize + token", () => {
     expect(token.status).toBe(200);
     await expect(isAuthorizedToken(body.access_token)).resolves.toBe(true);
     expect(readAccessToken(body.access_token).sub).toBe("google-sub-a");
+    expect(readAccessToken(body.access_token).sid).toBe("session-one");
 
     const refreshed = await postToken(
       formRequest("http://localhost:3000/oauth/mcp/token", {
@@ -157,6 +159,41 @@ describe("authorize + token", () => {
     );
     const refreshedBody = (await refreshed.json()) as { access_token: string };
     expect(readAccessToken(refreshedBody.access_token).sub).toBe("google-sub-a");
+    expect(readAccessToken(refreshedBody.access_token).sid).toBe("session-one");
+  });
+
+  it("keeps legacy tokens without a session id working", async () => {
+    const store = createMemoryOperatorStore();
+    await store.upsertCredentials({
+      googleSub: "google-sub-a",
+      email: "operator-a@example.com",
+      encryptedRefreshToken: encryptRefreshToken("1//a"),
+    });
+    setOperatorStore(store);
+
+    const clientId = await registerClient();
+    const verifier = "b".repeat(43);
+    const challenge = createHash("sha256").update(verifier).digest("base64url");
+    const { issueAuthorizationCode } = await import("@/mcp/oauth/tokens");
+    const code = issueAuthorizationCode({
+      clientId,
+      redirectUri: CLAUDE_AI_CALLBACK,
+      codeChallenge: challenge,
+      sub: "google-sub-a",
+    });
+
+    const token = await postToken(
+      formRequest("http://localhost:3000/oauth/mcp/token", {
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: CLAUDE_AI_CALLBACK,
+        client_id: clientId,
+        code_verifier: verifier,
+      }),
+    );
+    const body = (await token.json()) as { access_token: string };
+    expect(readAccessToken(body.access_token).sub).toBe("google-sub-a");
+    expect(readAccessToken(body.access_token).sid).toBeUndefined();
   });
 
   it("does not accept a static shared MCP token", async () => {
@@ -167,17 +204,31 @@ describe("authorize + token", () => {
   });
 });
 
-describe("lazy MCP auth", () => {
+describe("MCP OAuth discovery", () => {
   beforeEach(() => {
     setRequiredEnv();
   });
 
-  it("protects tools/call and leaves initialize public", () => {
-    expect(callsProtectedTool({ method: "initialize" })).toBe(false);
-    expect(callsProtectedTool({ method: "tools/list" })).toBe(false);
-    expect(callsProtectedTool({ method: "tools/call", params: { name: "ga4_run_report" } })).toBe(
-      true,
+  it("returns 401 with resource metadata so Claude detects Always required", async () => {
+    const handler = createGa4McpHandler();
+    const unauthorized = unauthorizedMcpResponse();
+    expect(unauthorized.status).toBe(401);
+    expect(unauthorized.headers.get("WWW-Authenticate")).toContain(
+      "resource_metadata=\"http://localhost:3000/.well-known/oauth-protected-resource/mcp\"",
     );
-    expect(unauthorizedToolCallResponse().status).toBe(401);
+
+    const probe = await handler(new Request("http://localhost:3000/mcp", { method: "GET" }));
+    expect(probe.status).toBe(401);
+    expect(probe.headers.get("WWW-Authenticate")).toContain("resource_metadata=");
+
+    const initialize = await handler(
+      new Request("http://localhost:3000/mcp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }),
+      }),
+    );
+    expect(initialize.status).toBe(401);
+    expect(initialize.headers.get("WWW-Authenticate")).toContain("resource_metadata=");
   });
 });

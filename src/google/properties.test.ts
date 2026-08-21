@@ -101,4 +101,26 @@ describe("property authorization", () => {
     );
     expect((await store.getByGoogleSub("sub-a"))?.activePropertyId).toBeNull();
   });
+
+  it("does not overwrite another session's property on the same Google account", async () => {
+    const { resolveAuthorizedProperty } = await import("@/google/properties");
+    const { getOperatorStore } = await import("@/store/operators");
+    await runWithOperator(
+      { requestId: "r1", operatorId: "op-a", googleSub: "sub-a", sessionId: "sid-a" },
+      async () => {
+        const switched = await resolveAuthorizedProperty("1002");
+        expect(switched.propertyId).toBe("1002");
+      },
+    );
+    await runWithOperator(
+      { requestId: "r2", operatorId: "op-a", googleSub: "sub-a", sessionId: "sid-b" },
+      async () => {
+        const active = await resolveAuthorizedProperty();
+        expect(active.propertyId).toBe("1001");
+      },
+    );
+    const store = getOperatorStore();
+    expect((await store.getSessionProperty("sub-a", "sid-a"))?.activePropertyId).toBe("1002");
+    expect((await store.getByGoogleSub("sub-a"))?.activePropertyId).toBe("1001");
+  });
 });
